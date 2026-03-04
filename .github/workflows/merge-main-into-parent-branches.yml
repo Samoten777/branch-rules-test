@@ -39,6 +39,8 @@ jobs:
           git config user.name "github-actions[bot]"
 
       - name: Merge main into parent/* branches
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
           MAIN_BRANCH="main"
           for branch in $(git branch -r | grep -E 'origin/parent/' | sed 's|origin/||' | tr -d ' '); do
@@ -47,7 +49,17 @@ jobs:
               if git merge "origin/$MAIN_BRANCH" -m "Merge $MAIN_BRANCH into $branch"; then
                 git push origin "$branch" || echo "Failed to push $branch"
               else
-                echo "Merge conflict or error in $branch, skipping push"
+                echo "Merge failed for $branch, creating PR from main into $branch..."
+                git merge --abort 2>/dev/null || true
+                git checkout "$MAIN_BRANCH" 2>/dev/null || true
+                if [ -z "$(gh pr list --base "$branch" --head "$MAIN_BRANCH" --state open)" ]; then
+                  gh pr create --base "$branch" --head "$MAIN_BRANCH" \
+                    --title "Merge main into $branch" \
+                    --body "Automated PR: direct merge of \`main\` into \`$branch\` failed (e.g. conflicts). Please review and merge manually."
+                  echo "Created PR from $MAIN_BRANCH to $branch"
+                else
+                  echo "Open PR from $MAIN_BRANCH to $branch already exists, skipping"
+                fi
               fi
               git checkout "$MAIN_BRANCH" 2>/dev/null || true
             else
