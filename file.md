@@ -2,4 +2,4 @@
 
 This file should be edited only through PRs.
 
-This line was added via a normal branch.
+This line was added via a normal branch and I accidentaly bypassed the merge rule.
