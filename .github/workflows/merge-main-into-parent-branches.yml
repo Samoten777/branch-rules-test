@@ -1,0 +1,44 @@
+name: Merge main into parent/* branches
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+jobs:
+  merge-main:
+    runs-on: ubuntu-latest
+    # Only run on push to main or when a PR is merged (not just closed)
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch all branches
+        run: git fetch origin
+
+      - name: Merge main into parent/* branches
+        run: |
+          MAIN_BRANCH="main"
+          for branch in $(git branch -r | grep -E 'origin/parent/' | sed 's|origin/||' | tr -d ' '); do
+            echo "Merging $MAIN_BRANCH into $branch..."
+            if git checkout "$branch" 2>/dev/null; then
+              if git merge "origin/$MAIN_BRANCH" -m "Merge $MAIN_BRANCH into $branch"; then
+                git push origin "$branch" || echo "Failed to push $branch"
+              else
+                echo "Merge conflict or error in $branch, skipping push"
+              fi
+              git checkout "$MAIN_BRANCH" 2>/dev/null || true
+            else
+              echo "Could not checkout $branch, skipping"
+            fi
+          done
